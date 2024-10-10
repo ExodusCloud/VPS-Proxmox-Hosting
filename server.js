@@ -1,13 +1,14 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require('axios');
+const fs = require('fs'); // Import the fs module
 const { sendWhatsAppMessage } = require('./whatsappBot');
 const app = express();
 const port = 3000;
 
-const PROXMOX_URL = 'https://YOUR_PROXMOX_URL:8006/api2/json';
+const PROXMOX_URL = 'https://IP_PROXMOX:8006/api2/json';
 const USERNAME = 'root@pam'; // Update to match your Proxmox user
-const PASSWORD = 'PROXMOX_PASSWORD'; // Update to your Proxmox password
+const PASSWORD = 'PASSWORD'; // Update to your Proxmox password
 
 let csrfToken;
 let ticket;
@@ -28,20 +29,31 @@ app.post('/register', async (req, res) => {
         await createProxmoxAccount(username, password);
         await createContainer(username, password);
 
-        // Buat pesan yang ingin ditampilkan di web
+        // Save WhatsApp number along with the username to whatsapp.txt
+        const whatsappEntry = `${whatsapp}(${username})\n`;
+        fs.appendFile('whatsapp.txt', whatsappEntry, (err) => {
+            if (err) {
+                console.error('Error writing to whatsapp.txt:', err);
+            } else {
+                console.log(`WhatsApp entry ${whatsappEntry.trim()} saved.`);
+            }
+        });
+
+        // Create message to display on the web
         const message = `Hai ${username}, Berikut adalah informasi akun VPS Proxmox anda:\n\n` +
                         `Akses login proxmox:\n` +
-                        `Host: https://pve-exoduscloud.redirectme.net:44016\n` +
+                        `Host: https://IP_PROXMOX:8006/\n` +
                         `Username: ${username}\n` +
                         `Password: ${password}\n` +
-                        `Realm: Proxmox VE authentication server\n\n` +
+                        `Realm: Proxmox VE authentication server\n` +
+                        `Jika VPS tidak dinyalakan setelah akun dibuat dalam waktu 1 jam maka VPS anda kami suspend\n\n` +
                         `Akses VPS di Proxmox:\n` +
                         `Username: root\n` +
                         `Password: ${password}\n\n` +
                         `Note:\n` +
                         `VPS tidak memiliki IP Public Static, jika anda ingin membuat VPS anda online, silahkan melakukan port forwarding / tunneling.`;
 
-        // Kirim pesan ke klien
+        // Send response to client
         res.send(`
             <html>
                 <body>
@@ -78,7 +90,7 @@ async function createProxmoxAccount(username, password) {
         const response = await axios.post(`${PROXMOX_URL}/access/users`, {
             userid: `${username}@pve`,
             password: password,
-            email: `${username}@yourdomain.local`,
+            email: `${username}@exoduscloud.local`,
         }, {
             headers: {
                 'CSRFPreventionToken': csrfToken,
@@ -101,7 +113,7 @@ async function createContainer(username, password) {
     const containerData = {
         vmid: Date.now() % 10000,
         hostname: username,
-        ostemplate: 'local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst', // make sure you have a image
+        ostemplate: 'local:vztmpl/YOUR_LXC_IMAGE',
         cores: 1,
         memory: 1024,
         net0: 'name=eth0,bridge=vmbr0,ip=dhcp',
@@ -109,7 +121,7 @@ async function createContainer(username, password) {
         password: password,
     };
 
-    await axios.post(`${PROXMOX_URL}/nodes/www/lxc`, containerData, {
+    await axios.post(`${PROXMOX_URL}/nodes/YOUR_PROXMOX_NODE/lxc`, containerData, {
         headers: {
             'CSRFPreventionToken': csrfToken,
             'Cookie': `PVEAuthCookie=${ticket}`,
