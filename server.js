@@ -1,19 +1,18 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const axios = require('axios');
-const fs = require('fs'); // Import the fs module
-const { sendWhatsAppMessage } = require('./whatsappBot');
+const fs = require('fs');
+//const { sendWhatsAppMessage } = require('./whatsappBot');
 const app = express();
 const port = 3000;
 
 const PROXMOX_URL = 'https://IP_PROXMOX:8006/api2/json';
-const USERNAME = 'root@pam'; // Update to match your Proxmox user
-const PASSWORD = 'PASSWORD'; // Update to your Proxmox password
+const USERNAME = 'root@pam'; // Your proxmox root
+const PASSWORD = 'PASSWORD'; // Your proxmox root password
 
 let csrfToken;
 let ticket;
 
-// Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
@@ -29,7 +28,7 @@ app.post('/register', async (req, res) => {
         await createProxmoxAccount(username, password);
         await createContainer(username, password);
 
-        // Save WhatsApp number along with the username to whatsapp.txt
+        // Save WhatsApp number
         const whatsappEntry = `${whatsapp}(${username})\n`;
         fs.appendFile('whatsapp.txt', whatsappEntry, (err) => {
             if (err) {
@@ -39,7 +38,7 @@ app.post('/register', async (req, res) => {
             }
         });
 
-        // Create message to display on the web
+        // Html message
         const message = `Hai ${username}, Berikut adalah informasi akun VPS Proxmox anda:\n\n` +
                         `Akses login proxmox:\n` +
                         `Host: https://IP_PROXMOX:8006/\n` +
@@ -53,7 +52,6 @@ app.post('/register', async (req, res) => {
                         `Note:\n` +
                         `VPS tidak memiliki IP Public Static, jika anda ingin membuat VPS anda online, silahkan melakukan port forwarding / tunneling.`;
 
-        // Send response to client
         res.send(`
             <html>
                 <body>
@@ -68,7 +66,6 @@ app.post('/register', async (req, res) => {
     }
 });
 
-// Function to authenticate and retrieve CSRF token and ticket
 async function authenticate() {
     const response = await axios.post(`${PROXMOX_URL}/access/ticket`, {
         username: USERNAME,
@@ -84,7 +81,7 @@ async function authenticate() {
     console.log(`Authenticated: ticket=${ticket}, csrfToken=${csrfToken}`);
 }
 
-// Function to create user in Proxmox
+// Create user
 async function createProxmoxAccount(username, password) {
     try {
         const response = await axios.post(`${PROXMOX_URL}/access/users`, {
@@ -104,11 +101,11 @@ async function createProxmoxAccount(username, password) {
         console.log(`Akun ${username} berhasil dibuat.`);
     } catch (error) {
         console.error('Error saat membuat akun Proxmox:', error.response.data);
-        throw error; // Rethrow the error for handling in the calling function
+        throw error; 
     }
 }
 
-// Function to create a new container in Proxmox
+// Create container
 async function createContainer(username, password) {
     const containerData = {
         vmid: Date.now() % 10000,
